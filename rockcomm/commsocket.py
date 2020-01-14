@@ -14,7 +14,7 @@ class CommSocket():
     """
     Motherclass of socket designed to send or receive one instance.
     """
-    def __init__(self, sock, adress):
+    def __init__(self, sock, address):
         """
         
 
@@ -22,8 +22,8 @@ class CommSocket():
         ----------
         sock : socket.socket
             socket to upgrade.
-        adress : (host, port)
-            IP adress (host, port)= assigned to the socket.
+        address : (host, port)
+            IP address (host, port)= assigned to the socket.
 
         Returns
         -------
@@ -31,17 +31,17 @@ class CommSocket():
 
         """
         self.sock = sock
-        self.adress = adress
+        self.address = address
 
     
-    def sendChecked(self, msg, maxtrys=10): #MUST rethink rcv accordingly
+    def sendChecked(self, msg, maxtrys=10): #MUST rethink recv accordingly
         """
         Improved version of socket.send : verifies length of received message and tries again if needed.
         
         Parameters
         ----------
-        msg : str
-            message to send. WARNING mustn't be encoded.
+        msg : bytes (binary str)
+            message to send.
         maxtrys : int, optional
             maximum send trys. The default is 10.
         
@@ -52,16 +52,27 @@ class CommSocket():
         checkBytes, attempts = 0, 0
         L = len(msg)
         while checkBytes != L:
-            checkBytes = self.sock.send(msg.encode())
+            checkBytes = self.sock.send(msg)
             attempts += 1
             if attempts > maxtrys:
                 raise RuntimeError('{} couldn\'t be sent in {} attempts'.format(msg, attempts))
         return attempts
     
-    def comm(self):
+    def defsend(self, sendChecked):
+        if sendChecked:
+            self.send = self.sendChecked
+        else:
+            self.send = self.sock.send
+    
+    def comm(self, sendChecked=False):
         """
         Method defined for each daughter class. Communicates to send or receive the instance.
 
+        Parameters
+        ----------
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
+        
         Returns
         -------
         None.
@@ -69,40 +80,56 @@ class CommSocket():
         """
         pass
 
+
+
 class DatarcvSocket(CommSocket):
     """
     Socket to receive one data
     """
-    def comm(self):
+    def comm(self, sendChecked=False):
         """
-        Recieves one data at (self.ip, self.port).
+        Receives one data at (self.ip, self.port).
         Format : receives the data type, then data value, then sends EOD (end of data) ; then deconnects.
-
+        
+        Parameters
+        ----------
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
+        
         Returns
         -------
         Data
             Instance of Data, with dtype, dvalue and time of reception.
 
         """
-        
-        print("Connexion de {}" % (self.adress))
-        dtype = self.sock.recv(2048)
-        self.sendChecked('DTYPE RCVED')
-        dvalue = self.sock.rcv(2048)
-        self.sendChecked('DVALUE RCVED')
-        EndMsg = self.sock.rcv(2048)
-        if EndMsg != 'EOD':
-            self.sendChecked('Error: EOD not recieved')
+        errorgotten = False
+        #print("Connexion de {}" % (self.address))
+        self.defsend(sendChecked)
+
+        dtype = self.sock.recv(2048).decode()
+        self.send(b'DTYPE RCVED')
+        dvalue = self.sock.recv(2048).decode()
+        self.send(b'DVALUE RCVED')
+        EndMsg = self.sock.recv(2048)
+        if EndMsg != b'EOD':
+            print(EndMsg.decode())
+            self.send(b'Error: EOD not received')
+            errorgotten = True
+        else:
+            self.send(b'EOD RCVED')
+
         self.sock.close()
-        print("Client déconnecté...")
-        return Data(dtype, dvalue, time.time()) #at this point we consider time of measure and time of rcv are similar
+        if not errorgotten:
+            return Data(dtype, dvalue, time.time()) #at this point we consider time of measure and time of rcv are similar
+        return Data('Error', 0, time.time())
+
 
 
 class CommandSocket(CommSocket):
     """
     Socket to send one command to the machine.
     """
-    def __init__(self, sock, adress, msg=''):
+    def __init__(self, sock, address, msg=b''):
         """
         
 
@@ -110,89 +137,134 @@ class CommandSocket(CommSocket):
         ----------
         sock : socket.socket
             socket to upgrade.
-        adress : (host, port)
-            IP adress (host, port)= assigned to the socket.
-        msg : str, optional
-            command to send. The default is ''.
+        address : (host, port)
+            IP address (host, port)= assigned to the socket.
+        msg : bytes (binary str), optional
+            command to send. The default is b''.
 
         Returns
         -------
         None.
 
         """
-        self.sock = sock
-        self.adress = adress
+        CommSocket.__init__(self, sock, address)
         self.msg = msg
 
-    def comm(self):
+    def comm(self, sendChecked=False):
         """
         Sends the command.
 
-        Raises
-        ------
-        NameError
-            if the command is unknown.
+        Parameters
+        ----------
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
 
         Returns
         -------
-        None.
+        answer: bytes (binary str)
+            answer given by the machine.
 
         """
-        
-        print("Connexion de %s %s" % (self.ip, self.port, ))
-        self.sendChecked(self.msg)
-        answer = self.listen(2048).decode()
-        if answer == 'unknown command':
-            raise NameError('Command not known by the machine.')
-        return
+        self.defsend(sendChecked)
+        #print("Connexion de %s %s" % (self.ip, self.port, ))
+        self.send(self.msg.encode())
+        answer = self.sock.recv(2048)
+        self.sock.close()
+        return answer
+
 
 
 class UserSocket(CommSocket):
     """
-    Socket to receive commands from the user
+    Socket to receive commands from the user and answer them.
     """
-    def comm(self):
-        pass
+    def comm_command(self, sendChecked=False):
+        """
+        receives one command from the user.
+
+        Parameters
+        ----------
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
+
+        Returns
+        -------
+        command : bytes (binary str)
+            command received.
+
+        """
+        self.defsend(sendChecked)
+        command = self.sock.recv(2048)
+        self.send(b'command received')
+        return command
+
+    def comm_answer(self, answer, sendChecked=False):
+        """
+        sends answer to the user.
+
+        Parameters
+        ----------
+        answer : bytes (binary str)
+            answer to send.
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
+
+        Raises
+        ------
+        Exception
+            If answer hasn't been correctly received.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.defsend(sendChecked)
+        self.send(answer)
+        confirmation = self.sock.recv(2048)
+        self.sock.close()
+        if confirmation != b'answer rcved':
+            raise Exception('Answer incorrectly received: {}'.format(confirmation))
+        return
 
 
 
-# def createCommSock(sockettype, ip, port, socktypelist=['command', 'datarcv', 'user']): # sockettype MUST BE in socktypelist
-#     """
-#     Creates a CommSocket according to the given name
+class InfoSocket(CommSocket):
+    """
+    Socket to send automatic infos to the user.
+    """
+    def __init__(self, sock, address, info):
+        CommSocket.__init__(self, sock, address)
+        self.info = info
+        return
     
-#     Parameters
-#     ----------
-#     sockettype : str
-#         type of socket.
-#     ip : str
-#         IP assigned to the socket.
-#     port : int
-#         port assigned to the socket.
-#     socktypelist: list, optional
-#         list of available CommSocket types.
-    
-#     Raises
-#     ------
-#     NameError
-#         if the sockettype isn't in the list.
-    
-#     Returns
-#     -------
-#     The created CommSocket.
-#     """
-#     if sockettype not in socktypelist:
-#         raise NameError('socket type doesn\'t exist - input error or type hasn\'t been listed yet')
-#     elif sockettype == 'command':
-#         return CommandSocket(ip, port)
-#     elif sockettype == 'datarcv':
-#         return DatarcvSocket(ip, port)
-#     elif sockettype == 'user':
-#         return UserSocket(ip, port)
+    def comm(self, sendChecked=False):
+        """
+        sends one information (str) to the user.
+
+        Parameters
+        ----------
+        sendChecked: bool, optional.
+            whether to use the modified send method or not. The default is False.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.defsend(sendChecked)
+        self.send(self.info.encode())
+        confirmation = self.sock.recv(2048)
+        if confirmation != b'info rcved':
+            raise Exception('Problem with info sending: {}'.format(confirmation))
+        self.sock.close()
+        return
+
 
 
 def bindsocket(port, host=''):
     """
-    Creates a socket assigned to the IP adress (host, port).
+    Creates a socket assigned to the IP address (host, port).
 
     Parameters
     ----------
