@@ -100,8 +100,10 @@ class PeriodicInfo(Thread):
         None.
 
         """
+        Thread.__init__(self)
         self.info = info
         self.period = period
+        self.IManager = IManager
         self.continuous = True
         return
     

@@ -88,9 +88,10 @@ class MainServer(): #MUST GET DATA SAVING IN THIS
         -------
         None.
 
-        """ 
+        """
         for thread in self.threads:
             thread.stopconnexion()
+        for thread in self.threads:
             thread.join()
         print("Server shut down.")
         return

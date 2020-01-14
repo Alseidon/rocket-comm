@@ -167,7 +167,7 @@ class CommandSocket(CommSocket):
         """
         self.defsend(sendChecked)
         #print("Connexion de %s %s" % (self.ip, self.port, ))
-        self.send(self.msg.encode())
+        self.send(self.msg)
         answer = self.sock.recv(2048)
         self.sock.close()
         return answer

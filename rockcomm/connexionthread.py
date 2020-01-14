@@ -43,15 +43,18 @@ class ConnexionThread(threading.Thread):
         -------
         None
         
-        """
-        sock = bindsocket(self.address[1], self.address[0])
-        sock.listen(self.listenMax)
+        """        
         while(self.continuous):
-            print('{} - running new loop'.format(self.address))
-            (clientsock, IPaddress) = sock.accept()
-            self.commsock = self.createCommSock(clientsock, IPaddress)
-            self.comm()
-        sock.close()
+            try:
+                print('{} - running new loop'.format(self.address))
+                sock = bindsocket(self.address[1], self.address[0])
+                sock.listen(self.listenMax)
+                (clientsock, IPaddress) = sock.accept()
+                self.commsock = self.createCommSock(clientsock, IPaddress)
+                self.comm()
+                sock.close()
+            except ConnectionResetError:
+                print('Connexion reset at address {}- reloading the loop'.format(self.address))
         print('{} - shutting down'.format(self.address))
         return
     
@@ -210,7 +213,7 @@ class CommandThread(ConnexionThread):
     
     def comm(self):
         """
-        Starts sending of one command. If no command is up for processing, passes.
+        Starts sending of one command. If no command is up for processing, sends 0.
 
         Returns
         -------
@@ -218,7 +221,10 @@ class CommandThread(ConnexionThread):
 
         """
         key, self.commsock.msg = self.CManager.get_command('MACH')
+        print(key)
         if key == None:
+            self.commsock.msg = b'0'
+            self.commsock.comm(sendChecked=True)
             return
         self.commsock.msg = self.commsock.msg[:-4]
         answer = self.commsock.comm(sendChecked=True)
@@ -255,20 +261,28 @@ class UserThread(ConnexionThread):
         """
         return UserSocket(sock, address)
     
-    def comm(self):            
+    def comm(self):
+        """
+        Starts receiving and answering one command. If no answer is achieved in 10 seconds, sends back this information.
+
+        Returns
+        -------
+        None.
+
+        """
         command = self.commsock.comm_command(sendChecked=True)
         key = self.CManager.add_command(command)
         answer = None
         time_passed = 0
         while answer == None:
-            sleep(.01)
+            sleep(.1)
             time_passed += 1
-            if time_passed > 1000:
-                del(self.CManager.answers[key])
-                return
+            if time_passed >= 100:
+                answer = 'No answer in {}s'.format(time_passed / 10).encode()
+                break
             answer = self.CManager.answers[key]
         del(self.CManager.answers[key])
-        self.commsock.comm_answer(sendChecked=True)
+        self.commsock.comm_answer(answer, sendChecked=True)
         return
 
 
@@ -300,7 +314,7 @@ class InfoThread(ConnexionThread):
     
     def comm(self):
         """
-        sends an information to the user if there is one to send.
+        sends an information to the user. If there is nothing to send, sends 0.
 
         Returns
         -------
@@ -309,6 +323,6 @@ class InfoThread(ConnexionThread):
         """
         self.commsock.info = self.IManager.get_info()
         if self.commsock.info == None:
-            return
+            self.commsock.info = 0
         self.commsock.comm()
         return

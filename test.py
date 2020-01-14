@@ -13,6 +13,7 @@ portI = 2112
 Serv = rockcomm.MainServer(host, portC, portD, portU, portI)
 Serv.start()
 
+Serv.IManager.add_periodic_info(b'still running', 2)
 
 # Serv.CThread.stopconnexion()
 # Serv.DThread.stopconnexion()
