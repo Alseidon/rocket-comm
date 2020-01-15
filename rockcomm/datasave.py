@@ -31,8 +31,26 @@ class Data():
         self.timeofsave = timeofsave
     
     def save(self, datasaver):
+        """
+        Saves the data in the given datasaver.
+
+        Parameters
+        ----------
+        datasaver : DataSaver
+            the instance saving the data.
+
+        Returns
+        -------
+        None.
+
+        """
         datasaver.save(self)
         return
+    
+    def __repr__(self):
+        return 'Data(dtype={}, dvalue={})'.format(self.dtype, self.dvalue)
+    def __str__(self):
+        return '{} : {}'.format(self.dtype, self.dvalue)
 
 
 
@@ -57,8 +75,7 @@ class DataSaver():
 
         """
         self.maindir = maindir
-        self.paths = [[maindir+'/{}.txt'.format(dtype), dtype] for dtype in datatypes]
-        self.writers = {path[1] : open(path[0], 'a') for path in self.paths}
+        self.paths = {dtype : maindir+'/{}.txt'.format(dtype) for dtype in datatypes}
         return
     
     def addDtype(self, dtype):
@@ -75,10 +92,8 @@ class DataSaver():
         None.
 
         """
-        newpath = [self.maindir+'/{}.txt'.format(dtype), dtype]
-        if newpath not in self.paths:
-            self.paths.append(newpath)
-            self.writers[dtype] = open(newpath[0], 'a')
+        if dtype not in self.paths:
+            self.paths[dtype] = self.maindir+'/{}.txt'.format(dtype)
         return
     
     def save(self, dataObj):
@@ -95,18 +110,8 @@ class DataSaver():
         None.
 
         """
-        while True:
-            try:
-                with self.writers[dataObj.dtype] as fichier:
-                    fichier.write('{}   {}\n'.format(dataObj.timeofsave, dataObj.dvalue))
-            except KeyError:
-                self.addDtype(dataObj.dtype)
-            except ValueError:
-                for path in self.paths:
-                    if path[1] == dataObj.dtype:
-                        path_to_open = path[0]
-                        break
-                self.writers[dataObj.dtype] = open(path_to_open, 'a')
-            else:
-                break
+        if dataObj.dtype not in self.paths:
+            self.addDtype(dataObj.dtype)
+        with open(self.paths[dataObj.dtype], 'a') as file:
+            file.write('{}   {}\n'.format(dataObj.timeofsave, dataObj.dvalue))
         return

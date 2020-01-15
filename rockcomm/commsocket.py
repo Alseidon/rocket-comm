@@ -253,7 +253,7 @@ class InfoSocket(CommSocket):
 
         """
         self.defsend(sendChecked)
-        self.send(self.info.encode())
+        self.send(self.info)
         confirmation = self.sock.recv(2048)
         if confirmation != b'info rcved':
             raise Exception('Problem with info sending: {}'.format(confirmation))

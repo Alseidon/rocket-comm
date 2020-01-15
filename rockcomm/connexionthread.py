@@ -226,10 +226,20 @@ class CommandThread(ConnexionThread):
             self.commsock.msg = b'0'
             self.commsock.comm(sendChecked=True)
             return
-        self.commsock.msg = self.commsock.msg[:-4]
         answer = self.commsock.comm(sendChecked=True)
         self.CManager.add_answer(key, answer)
         return
+    
+    def stopconnexion(self):
+        """
+        Sends information that server is shutting down.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.CManager.add_command(b'SERV SHUTOWN MACH')
 
 
 
@@ -326,3 +336,17 @@ class InfoThread(ConnexionThread):
             self.commsock.info = 0
         self.commsock.comm()
         return
+    
+    def stopconnexion(self): 
+        """
+        Sends information that server is shutting down and stops the thred.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.IManager.add_info(b'Server shutting down')
+        while self.IManager != []:
+            sleep(.5)
+        ConnexionThread.stopconnexion(self)

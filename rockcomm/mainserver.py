@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from .datasave import DataSaver
-from .connexionthread import DatarcvThread, CommandThread, UserThread, InfoThread
+from .connexionthread import ConnexionThread, DatarcvThread, CommandThread, UserThread, InfoThread
 from .manager import CommandManager, InfoManager
 
 from time import sleep
@@ -51,7 +51,7 @@ class MainServer(): #MUST GET DATA SAVING IN THIS
         None.
 
         """
-        self.DSaver = DataSaver(maindir=getcwd()) #MUST BE CREATED CORRECTLY
+        self.DSaver = DataSaver(maindir=getcwd())
         self.DThread = DatarcvThread((self.host, self.portD), self.DSaver, listenMax=1)
         self.threads.append(self.DThread)
         self.DThread.start()
@@ -90,7 +90,7 @@ class MainServer(): #MUST GET DATA SAVING IN THIS
 
         """
         for thread in self.threads:
-            thread.stopconnexion()
+            ConnexionThread.stopconnexion(thread)
         for thread in self.threads:
             thread.join()
         print("Server shut down.")

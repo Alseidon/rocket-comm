@@ -52,7 +52,7 @@ class CommandManager():
         for key in self.commands_to_proc:
             command = self.commands_to_proc[key]
             if command[-4:] == destination.encode():
-                return (key, command)
+                return (key, command[:-5])
         return (None, None)
 
     def add_answer(self, key, answer):
